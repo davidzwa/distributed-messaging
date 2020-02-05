@@ -1,0 +1,15 @@
+version: '3'
+services:
+  rabbitmq:
+    image: rabbitmq:3.8.2-management
+    labels:
+      NAME: "rabbitmq"
+    # environment:
+    #   - ERLANG_COOKIE=abcdefg
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+#     volumes:
+#       - ./.docker/share:/etc/rabbitmq/rabbitmq.config
+# volumes:
+#   rabbitmq:
