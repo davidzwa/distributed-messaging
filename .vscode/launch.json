@@ -11,13 +11,6 @@
             "module": "main",
             "console": "internalConsole",
             "cwd": "${workspaceFolder}/src"
-        },
-        {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "internalConsole"
         }
     ]
 }

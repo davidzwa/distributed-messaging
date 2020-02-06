@@ -1,25 +1,25 @@
 #!/usr/bin/env python
 import pika
 import time
-
-from utils.util import Spawner
 import asyncio
-
-async def main():
-    print('Hello ...')
-    await asyncio.sleep(1)
-    print('... World!')
+from utils.color import style
+from spawner import Spawner
 
 if __name__ == '__main__':
-    # asyncio.run(main())
-    
-    pikaConnection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-    print('Connection open? ', pikaConnection.is_open) # ,channel.connection
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters('localhost'))
+    if connection.is_closed:
+        print("The RabbitMQ server was not found (check connection localhost:5672). Quitting simulation.")
+    channel = connection.channel()
+    if channel.is_closed:
+        print("The RabbitMQ server was not found. Quitting simulation.")
+    connection.close()
 
-    Spawner(pikaConnection).execute()
+    task_spawner = Spawner()
+    task_spawner.execute()
 
-    # canceled = True
+    # canceled = False
     # while canceled == False:
     #     time.sleep(1)
 
-    print('Program exited after user cancellation.')
+    print(style.GREEN('Program exited normally.'))
