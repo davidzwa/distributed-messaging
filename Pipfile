@@ -10,6 +10,7 @@ rope = "*"
 [packages]
 pika = "*"
 asyncio = "*"
+aio-pika = "*"
 
 [requires]
 python_version = "3.8"

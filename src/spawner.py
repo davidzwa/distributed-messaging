@@ -8,7 +8,6 @@ class Spawner:
     count_workers = 3
 
     def __init__(self, count: int = None):
-
         if count is not None:
             self.count_workers = count
         else:
