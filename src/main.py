@@ -16,7 +16,8 @@ if __name__ == '__main__':
     connection.close()
 
     task_spawner = Spawner()
-    task_spawner.execute()
+    task_spawner.execute_concurrent()
+    # asyncio.run(task_spawner.execute_concurrent())
 
     # canceled = False
     # while canceled == False:

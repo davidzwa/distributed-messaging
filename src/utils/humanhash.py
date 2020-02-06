@@ -10,7 +10,7 @@ DEFAULT_WORDLIST = (
     'comet', 'connecticut', 'crazy', 'cup', 'dakota', 'december', 'delaware',
     'delta', 'diet', 'don', 'double', 'early', 'earth', 'east', 'echo',
     'edward', 'eight', 'eighteen', 'eleven', 'emma', 'enemy', 'equal',
-    'failed', 'fanta', 'fifteen', 'fillet', 'finch', 'fish', 'five', 'fix',
+    'fanta', 'feisty', 'fifteen', 'fillet', 'finch', 'fish', 'five', 'fix',
     'floor', 'florida', 'football', 'four', 'fourteen', 'foxtrot', 'freddie',
     'friend', 'fruit', 'gee', 'georgia', 'glucose', 'golf', 'green', 'grey',
     'hamper', 'happy', 'harry', 'hawaii', 'helium', 'high', 'hot', 'hotel',

@@ -2,6 +2,7 @@ import uuid
 import time
 import pika
 import asyncio
+import random
 from utils.color import style
 from utils import humanhash
 
@@ -13,19 +14,18 @@ class Worker:
 
     def __init__(self):
         """worker function"""
-        # Generate short UUID
-        # str(uuid.uuid4())[:4].upper()
         self.identifier = humanhash.get_unique_name(
             str(uuid.uuid4())[:4].upper())
-        print('-- Created [Worker {}]'.format(self.identifier))
+        self.__log_info(style.GREEN(
+            "Created [Worker {}]".format(self.identifier)))
 
     async def run(self):
-        print("Booted worker " + self.identifier)
         # Getting connection & channel to RabbitMQ
         self.get_rabbit_channel()
 
-        print("Got connection " + self.identifier)
-        time.sleep(1)
+        # Run code here
+        await asyncio.sleep(1 + random.random())
+
         self.__log_info(style.UNDERLINE("Done"))
         return
 
