@@ -1,26 +1,28 @@
 #!/usr/bin/env python
-import pika
+from time import sleep
+import multiprocessing
 import time
-import asyncio
-from utils.color import style
-from spawner import Spawner
+import pika
+from worker import Worker, ThreadPool
+import logging
+from async_recv import ReconnectingExampleConsumer, LOG_FORMAT
+
+
+def callback2(body):
+    print('Received: ', body)
+
+
+def consume(args):
+    logging.basicConfig(level=logging.WARNING, format=LOG_FORMAT)
+    amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
+    consumer = ReconnectingExampleConsumer(
+        amqp_url, on_message_callback=callback2)
+    consumer.run()
+
 
 if __name__ == '__main__':
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters('localhost'))
-    if connection.is_closed:
-        print("The RabbitMQ server was not found (check connection localhost:5672). Quitting simulation.")
-    channel = connection.channel()
-    if channel.is_closed:
-        print("The RabbitMQ server was not found. Quitting simulation.")
-    connection.close()
+    pool = ThreadPool(2)
 
-    task_spawner = Spawner()
-    task_spawner.execute_concurrent()
-    # asyncio.run(task_spawner.execute_concurrent())
-
-    # canceled = False
-    # while canceled == False:
-    #     time.sleep(1)
-
-    print(style.GREEN('Program exited normally.'))
+    for i in range(len(pool.workers)):
+        pool.add_task(consume, i)
+    pool.wait_completion()

@@ -1,79 +1,72 @@
-import uuid
-import time
-import pika
-import asyncio
-import random
-from utils.color import style
-from utils import humanhash
+from queue import Queue, Empty
+import threading
+from threading import Thread
 
 
-class Worker:
-    identifier = ""
-    connection: pika.BaseConnection
-    channel = None
+class Worker(Thread):
+    _TIMEOUT = 2
+    """ Thread executing tasks from a given tasks queue. Thread is signalable, 
+        to exit
+    """
 
-    def __init__(self):
-        """worker function"""
-        self.identifier = humanhash.get_unique_name(
-            str(uuid.uuid4())[:4].upper())
-        self.__log_info(style.GREEN(
-            "Created [Worker {}]".format(self.identifier)))
+    def __init__(self, tasks, th_num):
+        Thread.__init__(self)
+        self.tasks = tasks
+        self.daemon, self.th_num = True, th_num
+        self.done = threading.Event()
+        self.start()
 
-    async def run(self):
-        # Getting connection & channel to RabbitMQ
-        self.set_rabbit_channel()
+    def run(self):
+        while not self.done.is_set():
+            try:
+                func, args, kwargs = self.tasks.get(block=True,
+                                                    timeout=self._TIMEOUT)
+                try:
+                    func(*args, **kwargs)
+                except Exception as e:
+                    print(e)
+                finally:
+                    self.tasks.task_done()
+            except Empty as e:
+                pass
+        return
 
-        # Run code here
-        await asyncio.sleep(1 + 2.0 * random.random())
+    def signal_exit(self):
+        """ Signal to thread to exit """
+        self.done.set()
 
-        self.channel.queue_declare(queue='hello')
-        self.channel.basic_consume(queue='hello',
-                                   auto_ack=True,
-                                   on_message_callback=self.callback)
 
-        # self.channel.start_consuming()
-        asyncio.create_task(self.start_consuming())
+class ThreadPool:
+    """Pool of threads consuming tasks from a queue"""
 
-        await asyncio.sleep(1 + 2.0 * random.random())
-        self.channel.basic_publish(exchange='',
-                                   routing_key='hello',
-                                   body='Hello World from ' + self.identifier)
-        # print(" [x] Sent 'Hello World!'")
+    def __init__(self, num_threads, tasks=[]):
+        self.tasks = Queue(num_threads)
+        self.workers = []
+        self.done = False
+        self._init_workers(num_threads)
+        for task in tasks:
+            self.tasks.put(task)
 
-        # Quitting, cleaning up
-        await asyncio.sleep(1 + 2.0 * random.random())
-        # self.connection.close()
-        self.__log_info(style.UNDERLINE("Done"))
+    def _init_workers(self, num_threads):
+        for i in range(num_threads):
+            self.workers.append(Worker(self.tasks, i))
 
-    async def start_consuming(self):
-        self.__log_info('Waiting for messages.')
-        # self.channel.start_consuming()
+    def add_task(self, func, *args, **kwargs):
+        """Add a task to the queue"""
+        self.tasks.put((func, args, kwargs))
 
-    def callback(self, ch, method, properties, body):
-        self.__log_info("Received %r" % body)
+    def _close_all_threads(self):
+        """ Signal all threads to exit and lose the references to them """
+        for workr in self.workers:
+            workr.signal_exit()
+        self.workers = []
 
-    def set_rabbit_channel(self):
-        self.connection = pika.SelectConnection(
-            # pika.ConnectionParameters('localhost'),
-            on_open_callback=self.on_open)
+    def wait_completion(self):
+        """Wait for completion of all the tasks in the queue"""
+        self.tasks.join()
 
-        self.connection.ioloop.start()
-        # self.connection.ioloop.start()
-        # self.channel = self.connection.channel(on_open_callback=self.on_open)
-        self.__log_info('Channel open?', style.BLUE(self.channel.is_open))
+    def __del__(self):
+        self._close_all_threads()
 
-    def on_open(connection):
-        print('connection open')
-        connection.channel(on_open_callback=self.on_channel_open)
-
-    def on_channel_open(channel):
-        print('channel open')
-        channel.basic_publish('exchange_name',
-                              'routing_key',
-                              'Test Message',
-                              pika.BasicProperties(content_type='text/plain',
-                                                   type='example'))
-
-    def __log_info(self, *values: object):
-        print(style.YELLOW('[Worker {}]'.format(self.identifier)), end=' ')
-        print(*values)
+    def create_task(func, *args, **kwargs):
+        return (func, args, kwargs)
