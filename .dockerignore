@@ -4,12 +4,6 @@
 .vs/**/*
 .vscode
 .vscode/**/*
-EdgeDeployment
-EdgeDeployment/**/*
-Ridder.GHOST.External.Dashboard
-Ridder.GHOST.External.Dashboard/**/*
-v1
-v1/**/*
 .git
 .git/**/*
 
