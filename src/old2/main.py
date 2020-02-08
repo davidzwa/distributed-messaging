@@ -12,7 +12,7 @@ import pika
 from random import randrange
 from worker import *
 import logging
-from async_recv import ReconnectingExampleConsumer, LOG_FORMAT
+from async_recv import ReconnectingConsumer, LOG_FORMAT
 
 
 def callback(ch, method, properties, body):
@@ -29,7 +29,7 @@ def callback2(body):
 def consume(args):
     logging.basicConfig(level=logging.WARNING, format=LOG_FORMAT)
     amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-    consumer = ReconnectingExampleConsumer(
+    consumer = ReconnectingConsumer(
         amqp_url, on_message_callback=callback2)
     consumer.run()
 
