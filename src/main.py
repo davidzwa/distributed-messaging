@@ -4,6 +4,7 @@ import pika
 import time
 import multiprocessing
 import random
+from utils.color import style
 from aio_pika import IncomingMessage
 from algorithm_node import AlgorithmNode
 from utils.threadpool import ThreadPool, Worker
@@ -19,11 +20,11 @@ logging.getLogger("aio_pika").propagate = False
 
 def on_message_callback_debug(node_identifier, message: IncomingMessage):
     # See messages arriving in this simulation (optional)
-    LOGGER.info('Received: ' + str(message.body) +
-                ' at node ' + node_identifier)
+    LOGGER.debug('Received: ' + str(message.body) +
+                 ' at node ' + node_identifier)
 
 
-def start_async_node(index):
+def start_async_node(index, color):
     # Default AMQP url to RabbitMQ broker
     amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
 
@@ -34,6 +35,8 @@ def start_async_node(index):
         amqp_url=amqp_url,
         on_message_receive_debug=on_message_callback_debug)
 
+    # Set debugging color
+    consumer.color = color
     # Start it and if correct 'run_core()' should be called in it.
     consumer.start()
 
@@ -41,12 +44,18 @@ def start_async_node(index):
 if __name__ == '__main__':
     # Run custom ThreadPool object with 'start_async_node' as target
 
-    num_workers = 2
+    num_workers = 50
+    worker_colors = [style.GREEN, style.YELLOW]
     LOGGER.info("Booting algorithm simulator for {} workers".format(num_workers))
     pool = ThreadPool(num_workers)
     for i in range(len(pool.workers)):
         # Start one threaded & async node (connection => thread, async handling => coroutine)
-        pool.add_task(start_async_node, i)
+        worker_color = style.GREEN
+        try:
+            worker_color = worker_colors[i]
+        except:
+            pass
+        pool.add_task(start_async_node, i, worker_color)
 
         # Sleep if you require
         # time.sleep(random.random())

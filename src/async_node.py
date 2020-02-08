@@ -36,8 +36,17 @@ class AsyncNode(object):
             self._amqp_url = amqp_url
 
     @abc.abstractmethod
-    async def run_core(cls):
-        return cls()
+    async def setup_connection(self, loop):
+        queue_name = "test_queue." + self._identifier
+        await self.init_connection(loop=loop)
+        await self.init_topic_messaging(queue_name, exchange_name='main_exchange')
+        raise NotImplementedError(self._identifier +
+                                  ": Class function setup_connection() is not implemented, but is abstract.")
+
+    @abc.abstractmethod
+    async def run_core(self):
+        raise NotImplementedError(self._identifier +
+                                  ": Class function run_core() is not implemented, but is abstract.")
 
     def start(self):
         # Create asyncio event-loop for co-routines
@@ -45,10 +54,7 @@ class AsyncNode(object):
         loop.run_until_complete(self.run_async(loop))
 
     async def run_async(self, loop):
-        # Connect to setup [exchange => (topic) => queue]
-        queue_name = "test_queue." + self._identifier
-        await self.init_connection(loop=loop)
-        await self.init_topic_messaging(queue_name, exchange_name='davids_exchange')
+        await self.setup_connection(loop)
 
         # Call main loop, implemented by user
         if not self.run_core or not callable(self.run_core):
@@ -64,12 +70,20 @@ class AsyncNode(object):
         await self.close_connection()
         LOGGER.info(self._identifier + " done and cleaned up after it.")
 
+    # Left private so we can explicitly bubble up the message to derivative class
     async def __receive_message(self, message: IncomingMessage):
         async with message.process():
-            LOGGER.info(
+            LOGGER.debug(
                 self._identifier + " received message on exchange '{}'".format(message.exchange))
             if callable(self._on_message_callback_debug):
                 self._on_message_callback_debug(self._identifier, message)
+
+    # Public method, since it is straight-forward
+    async def publish_message(self, message: Message, routing_key):
+        if self._exchange is None:
+            LOGGER.error(
+                "Exchange is None or is_closed() is true. Have you initialized the exchange and queue by calling init_fanout_messaging, init_topic_messaging or init_direct_messaging?")
+        await self._exchange.publish(message, routing_key)
 
     async def init_connection(self, loop):
         self._connection = await connect_robust(
