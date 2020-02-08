@@ -12,7 +12,7 @@ LOGGER = logging.getLogger(__name__)
 class Manager(object):
     EXCHANGE = 'message'
     EXCHANGE_TYPE = 'topic'
-    QUEUE = 'text'
+    QUEUE = 'manager_queue'
     ROUTING_KEY = 'example.text'
 
     def __init__(self, amqp_url, on_message_callback=None):
@@ -148,11 +148,14 @@ class Manager(object):
             self._channel.close()
 
     def on_message(self, _unused_channel, basic_deliver, properties, body):
-        LOGGER.info('Received message # %s from %s: %s',
-                    basic_deliver.delivery_tag, properties.app_id, body)
+        LOGGER.debug('Manager received message # %s from %s: %s',
+                     basic_deliver.delivery_tag, properties.app_id, body)
         self.acknowledge_message(basic_deliver.delivery_tag)
         if callable(self.on_message_callback):
             self.on_message_callback(body)
+        else:
+            LOGGER.warning(
+                "Manager tried to call 'self.on_messaging_callback', but it is not 'callable()'")
 
     def acknowledge_message(self, delivery_tag):
         LOGGER.debug('Acknowledging message %s', delivery_tag)

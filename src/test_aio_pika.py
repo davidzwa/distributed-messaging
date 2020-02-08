@@ -32,7 +32,7 @@ async def main(loop):
             ),
             routing_key
         )
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
 
     # Receiving message
     incoming_message = await queue.get(timeout=5)
@@ -41,6 +41,7 @@ async def main(loop):
     await incoming_message.ack()
 
     await queue.unbind(exchange, routing_key)
+    await queue.purge()
     await queue.delete()
     await connection.close()
 
