@@ -12,26 +12,26 @@ LOGGER = logging.getLogger(__name__)
 
 
 class AlgorithmNode(BaseNode):
-    config: AlgorithmConfig
+    _config: AlgorithmConfig
 
     # Intercept message receipt, init base class
     def __init__(self, config: AlgorithmConfig, on_message_receive_debug=None):
-        self.config = config
+        self._config = config
         self.report_message_callback = on_message_receive_debug
-        super().__init__(config, self.receive_message)
+        super().__init__(self._config, self.receive_message)
 
     # Implement abstract function of base class
     async def setup_connection(self, loop):
         await self.init_connection(loop=loop)
         self.log('Setup exchange as fanout')
-        await self.init_fanout_messaging(self.config.identifier, exchange_name=self.config.exchange_name)
+        await self.init_fanout_messaging(self._config.identifier, exchange_name=self._config.exchange_name)
 
     # Implement abstract function of base class:
     #   Run core of algorithm with a proper connection to RabbitMq setup for you
     async def run_core(self):
         self.log('Running core loop for {}'.format(self._identifier))
 
-        # Send 50 test messages with random delay
+        # Send x test messages with random delay
         for i in range(2):
             broadcastMessage = BroadcastMessage(node_name=self._identifier)
             msg = Message(bytes(broadcastMessage.serialize(), encoding='utf8'))
@@ -40,6 +40,9 @@ class AlgorithmNode(BaseNode):
 
             delay = random.random() / 10.0
             await asyncio.sleep(delay)
+
+        self.log("Waiting 0.5 seconds to cleanup")
+        await asyncio.sleep(0.5)
 
     # Asynchronous message receipt, synchronous handler
     def receive_message(self, node_identifier, message: IncomingMessage):

@@ -21,8 +21,8 @@ logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 logging.getLogger("aio_pika").propagate = False
 
 
-def log_main(message):
-    LOGGER.info(style.BLUE(message))
+def log_main(log_message):
+    LOGGER.info(style.BLUE(log_message))
 
 
 def on_message_callback_debug(node_identifier, message: IncomingMessage):
@@ -67,6 +67,7 @@ if __name__ == '__main__':
             index,
             index == algorithm_initiator_index,
             amqp_url=RABBITMQ_CONNECTION_STRING,
+            autodelete_queue=False,
             debug_messages=True)
         if algorithm_initiator_index == index:
             log_main("Booting initiator node index {} now.".format(

@@ -30,16 +30,16 @@ class BaseNode(object):
         self._identifier = config.identifier
         self._exchange_name = config.exchange_name
         LOGGER.info("Started async_node " + self._identifier)
-        if config.amqp_url:
-            self._amqp_url = config.amqp_url
+        if self._config.amqp_url:
+            self._amqp_url = self._config.amqp_url
         if callable(on_message_receive_debug):
             self._on_message_callback_debug = on_message_receive_debug
 
     @abc.abstractmethod
     async def setup_connection(self, loop):
-        queue_name = "test_queue." + self._identifier
-        await self.init_connection(loop=loop)
-        await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
+        # queue_name = self._identifier
+        # await self.init_connection(loop=loop)
+        # await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
         raise NotImplementedError(self._identifier +
                                   ": Class function setup_connection() is not implemented, but is abstract.")
 
@@ -129,7 +129,7 @@ class BaseNode(object):
             LOGGER.error(
                 "Channel is closed, or was never initiated. Did you call 'init_connection()'? Also, check your RabbitMQ connection or check for previous channel errors.")
         exchange = await self._channel.declare_exchange(exchange_name, type=exchange_type, auto_delete=self._config.autodelete_exchange)
-        queue = await self._channel.declare_queue(queue_name, auto_delete=self._config.autodelete_queues)
+        queue = await self._channel.declare_queue(queue_name, auto_delete=self._config.autodelete_queue)
         # Purges the queue, handy if previous simulations left behind stuff (and autodelete = False)
         if self._config.prepurge_queue:
             await queue.purge()

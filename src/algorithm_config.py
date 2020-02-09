@@ -7,12 +7,12 @@ class BaseConfig(object):
     debug_messages: bool = True
     identifier: str = "AlgorithmManager"
 
-    def __init__(self, delete_exchange, amqp_url="amqp://guest:guest@localhost:5672/%2F"):
+    def __init__(self, delete_exchange, autodelete_exchange, amqp_url="amqp://guest:guest@localhost:5672/%2F"):
         # Connection string
         self.amqp_url = amqp_url
 
         # Note: autodelete fires when connection(/all channels) close
-        self.autodelete_exchange = True
+        self.autodelete_exchange = autodelete_exchange
         # Cleanup properties, note auto-delete in RabbitMQ above setup overrides this
         self.delete_exchange = delete_exchange
 
@@ -25,7 +25,9 @@ class AlgorithmConfig(BaseConfig):
     def __init__(self,
                  index, is_algorithm_initiator,
                  amqp_url=None,
-                 color=style.GREEN, debug_messages=True, delete_exchange=False, delete_queue=False):
+                 color=style.GREEN, debug_messages=True,
+                 autodelete_exchange=True, delete_exchange=False,
+                 prepurge_queues=True, autodelete_queue=True, delete_queue=False):
 
         # Algorithm initiator, will listen for the 'kick-off' message
         self.is_algorithm_initiator = is_algorithm_initiator
@@ -42,10 +44,10 @@ class AlgorithmConfig(BaseConfig):
         self.debug_messages = debug_messages
 
         # RabbitMQ setup properties
-        self.autodelete_queues = True
-        # Explicit delete (after algorithm node finishes). Beware this means you need to delete them yourself (if False and autodelete_queues = False)!
+        self.autodelete_queue = autodelete_queue
+        # Explicit delete (after algorithm node finishes). Beware this means you need to delete them yourself (if False and autodelete_queue = False)!
         self.delete_queue = delete_queue
         # Purge queue before starting algorithm, you never know...
-        self.prepurge_queue = True
+        self.prepurge_queue = prepurge_queues
 
-        super().__init__(delete_exchange, amqp_url=amqp_url)
+        super().__init__(delete_exchange, autodelete_exchange, amqp_url=amqp_url)
