@@ -51,8 +51,8 @@ class AlgorithmNode(BaseNode):
         if not msg.node_name == self._identifier:
             print_message = ' : Got message {} from node {}'.format(
                 msg.uuid, msg.node_name)
-            if callable(self.config.color):
-                self.log(self._identifier + self.config.color(print_message))
+            if callable(self._config.color):
+                self.log(self._identifier + self._config.color(print_message))
             else:
                 self.log(self._identifier + print_message)
 
@@ -62,5 +62,5 @@ class AlgorithmNode(BaseNode):
             # skipping own message
 
     def log(self, message):
-        if self.config.debug_messages:
+        if self._config.debug_messages:
             LOGGER.info(style.YELLOW(message))
