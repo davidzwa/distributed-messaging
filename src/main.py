@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import logging
-import pika
 import time
 import multiprocessing
 import random
+import asyncio
+import aio_pika
 from utils.timing import *
 from utils.color import style
 from aio_pika import IncomingMessage
@@ -25,21 +26,29 @@ def log_main(log_message):
     LOGGER.info(style.BLUE(log_message))
 
 
-def on_message_callback_debug(node_identifier, message: IncomingMessage):
+def spy_message(node_identifier, message: IncomingMessage):
     # See messages arriving in this simulation (optional)
-    log_main('Received: ' + str(message.body) +
+    log_main('Message-spy detected: ' + str(message.body) +
              ' at node ' + node_identifier)
 
 
-def start_async_node(parameters: AlgorithmConfig):
+def start_async_node(config: AlgorithmConfig):
     consumer = AlgorithmNode(
-        parameters)
+        config,
+        on_message_receive_debug=spy_message)
     # Start it and if correct 'consumer.run_core()' should be called, once RabbitMQ communication is setup.
     consumer.start()
 
 
 def kickoff_simulation(default_config: BaseConfig):
-    # semd kickoff message here, starting the node(s) with algorithm_initiator set to True.
+    # send kickoff message here, starting the node(s) with algorithm_initiator set to True.
+    # loop = asyncio.new_event_loop()
+    # connection = await aio_pika.connect_robust(
+    #     RABBITMQ_CONNECTION_STRING, loop=loop
+    # )
+    # channel = await connection.channel()
+    # channel.declare_exchange
+    # channel.default_exchange.publish
     pass
 
 
@@ -48,7 +57,7 @@ if __name__ == '__main__':
     start_time = getTime()
 
     # Setup algorithm nodes and initiator
-    num_nodes = 2
+    num_nodes = 50
     algorithm_initiator_index = random.randint(0, num_nodes - 1)
     log_main("Booting algorithm simulator for {} nodes with {} as initiator".format(
         num_nodes, algorithm_initiator_index))

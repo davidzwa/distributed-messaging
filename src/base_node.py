@@ -62,7 +62,7 @@ class BaseNode(object):
                 "Provide a run_core() implementation in your extending class, because run_core() is not callable right now!")
         else:
             # Blocking wait
-            await self.run_core()
+            await self.run_core(loop)
         # await asyncio.sleep(1)
         LOGGER.debug(self._identifier + " finished. Cleaning up.")
 
@@ -74,7 +74,7 @@ class BaseNode(object):
     async def __receive_message(self, message: IncomingMessage):
         async with message.process():
             LOGGER.debug(
-                self._identifier + " received message on exchange '{}'".format(message.exchange))
+                self._identifier + " received (unhandled) message on exchange '{}'".format(message.exchange))
             if callable(self._on_message_callback_debug):
                 self._on_message_callback_debug(self._identifier, message)
 
