@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-# pylint: disable=C0111,C0103,R0205
-
 import functools
 import logging
 import time
 import asyncio
 import abc
+from algorithm_config import AlgorithmConfig
 from aio_pika import connect_robust, Message, IncomingMessage, ExchangeType
 
 LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
@@ -14,32 +12,34 @@ LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
 LOGGER = logging.getLogger(__name__)
 
 
-class AsyncNode(object):
+class BaseNode(object):
     """ This is an example consumer that will connect with asynchronous connection
         Find documentation on aio_pika here https://aio-pika.readthedocs.io/en/latest/quick-start.html
         Find documentation on asyncio here https://docs.python.org/3/library/asyncio.html
     """
-    _amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-    _identifier = "GenericNode"
+    _amqp_url = "amqp://guest:guest@localhost:5672/%2F"
+    _identifier = "UnsetIdentifier"
+    _exchange_name = "main_default_exchange"
     _connection = None
     _channel = None
     _queue = None
     _exchange = None
 
-    def __init__(self, identifier, amqp_url="", on_message_receive_debug=None):
-        self._identifier = identifier
+    def __init__(self, config: AlgorithmConfig, on_message_receive_debug=None):
+        self._config = config
+        self._identifier = config.identifier
+        self._exchange_name = config.exchange_name
+        LOGGER.info("Started async_node " + self._identifier)
+        if config.amqp_url:
+            self._amqp_url = config.amqp_url
         if callable(on_message_receive_debug):
             self._on_message_callback_debug = on_message_receive_debug
-
-        LOGGER.info("Started async_node " + self._identifier)
-        if amqp_url:
-            self._amqp_url = amqp_url
 
     @abc.abstractmethod
     async def setup_connection(self, loop):
         queue_name = "test_queue." + self._identifier
         await self.init_connection(loop=loop)
-        await self.init_topic_messaging(queue_name, exchange_name='main_exchange')
+        await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
         raise NotImplementedError(self._identifier +
                                   ": Class function setup_connection() is not implemented, but is abstract.")
 
@@ -67,7 +67,7 @@ class AsyncNode(object):
         LOGGER.debug(self._identifier + " finished. Cleaning up.")
 
         # Cleanup work
-        await self.close_connection()
+        await self.close_connection(delete_queue=self._config.delete_queue)
         LOGGER.info(self._identifier + " done and cleaned up after it.")
 
     # Left private so we can explicitly bubble up the message to derivative class
@@ -95,43 +95,57 @@ class AsyncNode(object):
             LOGGER.error(
                 "Connection is closed, or was never initiated. Check your RabbitMQ connection.")
 
-    async def init_fanout_messaging(self, queue_name, exchange_name='main_fanout_messaging'):
+    async def init_fanout_messaging(self, queue_name, exchange_name):
+        """
+        Reach the whole set of nodes by exchange-queue bindings (multicast, easiest). 
+        """
         # Declaring exchange & bind queue to it
         await self.bind_queue_exchange(
             queue_name, exchange_name, exchange_type=ExchangeType.FANOUT)
 
-    async def init_topic_messaging(self, queue_name, exchange_name='main_topic_messaging'):
+    async def init_topic_messaging(self, queue_name, exchange_name):
         """
-        Only reach a subset of nodes by topic
+        Only reach a subset of nodes by topic (multicast), you need to book-keep the topic(s). 
+        Note: topic has optional wildcard options, f.e. 'node_topic.*' or inversely 'node_topic.id_1' making it quite handy.
         """
         # Declaring exchange & bind queue to it
         await self.bind_queue_exchange(
             queue_name, exchange_name, exchange_type=ExchangeType.TOPIC)
 
-    async def init_direct_messaging(self, queue_name, exchange_name='main_direct_messaging'):
+    async def init_direct_messaging(self, queue_name, exchange_name):
+        """
+        Only reach one node by explicit name (unicast).
+        Note: in order to know which queue's there are you need to do some book-keeping 
+            Options:
+                - (dynamic) pyrabbit RabbitMQ-management plugin query on f.e. 'localhost:15672'
+                - (static) book-keeping of queue-names
+        """
         # Declaring exchange & bind queue to it
         await self.bind_queue_exchange(
             queue_name, exchange_name, exchange_type=ExchangeType.DIRECT)
 
-    async def bind_queue_exchange(self, queue_name, exchange_name, exchange_type=ExchangeType.DIRECT):
+    async def bind_queue_exchange(self, queue_name, exchange_name, exchange_type=ExchangeType.FANOUT):
         if not self._channel or self._channel.is_closed:
             LOGGER.error(
                 "Channel is closed, or was never initiated. Did you call 'init_connection()'? Also, check your RabbitMQ connection or check for previous channel errors.")
-        exchange = await self._channel.declare_exchange(exchange_name, type=exchange_type, auto_delete=True)
-        queue = await self._channel.declare_queue(queue_name, auto_delete=True)
+        exchange = await self._channel.declare_exchange(exchange_name, type=exchange_type, auto_delete=self._config.autodelete_exchange)
+        queue = await self._channel.declare_queue(queue_name, auto_delete=self._config.autodelete_queues)
+        # Purges the queue, handy if previous simulations left behind stuff (and autodelete = False)
+        if self._config.prepurge_queue:
+            await queue.purge()
         await queue.bind(exchange)
         await queue.consume(self.__receive_message)
 
         self._exchange = exchange
         self._queue = queue
 
-    async def close_connection(self, delete_queue=True):
+    async def close_connection(self, delete_queue):
         if self._queue:
             await self._queue.unbind(self._exchange)
-            if delete_queue:
+            if self._config.delete_queue:
                 # await self._queue.purge()
                 await self._queue.delete(if_unused=False, if_empty=False)
-        if self._exchange:
+        if self._exchange and self._config.delete_exchange:
             await self._exchange.delete()
         await self._connection.close()
 
@@ -139,7 +153,7 @@ class AsyncNode(object):
 def main():
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-    consumer = AsyncNode(amqp_url)
+    consumer = BaseNode(amqp_url)
     consumer.__run()
 
 

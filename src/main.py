@@ -4,59 +4,83 @@ import pika
 import time
 import multiprocessing
 import random
+from utils.timing import *
 from utils.color import style
 from aio_pika import IncomingMessage
 from algorithm_node import AlgorithmNode
+from algorithm_config import AlgorithmConfig, BaseConfig
 from utils.threadpool import ThreadPool, Worker
 
-LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -30s %(funcName) '
-              '-35s %(lineno) -5d: %(message)s')
+LOG_FORMAT = ('%(levelname) -10s %(asctime)s %(name) -15s %(funcName) '
+              '-10s %(lineno) -5d: %(message)s')
+RABBITMQ_CONNECTION_STRING = "amqp://guest:guest@localhost:5672/%2F"
+
 LOGGER = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
-# disable propagation of pika messages
-logging.getLogger("pika").propagate = False
+# disable propagation of aio_pika messages as it will clog your terminal, only set True if you have little nodes
 logging.getLogger("aio_pika").propagate = False
+
+
+def log_main(message):
+    LOGGER.info(style.BLUE(message))
 
 
 def on_message_callback_debug(node_identifier, message: IncomingMessage):
     # See messages arriving in this simulation (optional)
-    LOGGER.debug('Received: ' + str(message.body) +
-                 ' at node ' + node_identifier)
+    log_main('Received: ' + str(message.body) +
+             ' at node ' + node_identifier)
 
 
-def start_async_node(index, color):
-    # Default AMQP url to RabbitMQ broker
-    amqp_url = 'amqp://guest:guest@localhost:5672/%2F'
-
-    # Create algorithm node
-    node_identifier = "MulticastNode" + str(index)
+def start_async_node(parameters: AlgorithmConfig):
     consumer = AlgorithmNode(
-        node_identifier,
-        amqp_url=amqp_url,
-        on_message_receive_debug=on_message_callback_debug)
-
-    # Set debugging color
-    consumer.color = color
-    # Start it and if correct 'run_core()' should be called in it.
+        parameters)
+    # Start it and if correct 'consumer.run_core()' should be called, once RabbitMQ communication is setup.
     consumer.start()
 
 
-if __name__ == '__main__':
-    # Run custom ThreadPool object with 'start_async_node' as target
+def kickoff_simulation(default_config: BaseConfig):
+    # semd kickoff message here, starting the node(s) with algorithm_initiator set to True.
+    pass
 
-    num_workers = 50
-    worker_colors = [style.GREEN, style.YELLOW]
-    LOGGER.info("Booting algorithm simulator for {} workers".format(num_workers))
-    pool = ThreadPool(num_workers)
-    for i in range(len(pool.workers)):
+
+if __name__ == '__main__':
+    default_worker_colors = [style.GREEN, style.YELLOW]
+    start_time = getTime()
+
+    # Setup algorithm nodes and initiator
+    num_nodes = 2
+    algorithm_initiator_index = random.randint(0, num_nodes - 1)
+    log_main("Booting algorithm simulator for {} nodes with {} as initiator".format(
+        num_nodes, algorithm_initiator_index))
+
+    # Run custom ThreadPool object with 'start_async_node' as target
+    pool = ThreadPool(num_nodes)
+    for index in range(len(pool.workers)):
         # Start one threaded & async node (connection => thread, async handling => coroutine)
         worker_color = style.GREEN
         try:
-            worker_color = worker_colors[i]
+            worker_color = default_worker_colors[index]
         except:
             pass
-        pool.add_task(start_async_node, i, worker_color)
+
+        parameters = AlgorithmConfig(
+            index,
+            index == algorithm_initiator_index,
+            amqp_url=RABBITMQ_CONNECTION_STRING,
+            debug_messages=True)
+        if algorithm_initiator_index == index:
+            log_main("Booting initiator node index {} now.".format(
+                algorithm_initiator_index))
+        else:
+            log_main("Booting normal node index {} (!= {}) now.".format(
+                index, algorithm_initiator_index))
+        pool.add_task(start_async_node, parameters)
 
         # Sleep if you require
         # time.sleep(random.random())
+
+    # Await all workers to complete
     pool.wait_completion()
+    delta_time = getElapsedTime(start_time)
+    log_main("Simulation ended in {} seconds".format(
+        round(delta_time, 3)))
