@@ -24,10 +24,11 @@ class Worker(Thread):
                 try:
                     func(*args, **kwargs)
                 except Exception as e:
-                    print(e)
+                    print("Thread inner-function exception! ", str(e))
                 finally:
                     self.tasks.task_done()
             except Empty as e:
+                print("Exception! " + str(e))
                 pass
         return
 

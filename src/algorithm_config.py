@@ -7,7 +7,7 @@ class BaseConfig(object):
     debug_messages: bool = True
     identifier: str = "AlgorithmManager"
 
-    def __init__(self, delete_exchange, autodelete_exchange, amqp_url="amqp://guest:guest@localhost:5672/%2F"):
+    def __init__(self, delete_exchange=False, autodelete_exchange=True, amqp_url="amqp://guest:guest@localhost:5672/%2F"):
         # Connection string
         self.amqp_url = amqp_url
 
@@ -32,9 +32,9 @@ class AlgorithmConfig(BaseConfig):
         # Algorithm initiator, will listen for the 'kick-off' message
         self.is_algorithm_initiator = is_algorithm_initiator
         # Save index, will be handy as tie-breaker
-        self.index = index
+        self.node_index = index
         # Used as indicator and as queue name
-        self.identifier = self._identifier_base + str(self.index)
+        self.identifier = self._identifier_base + str(self.node_index)
 
         # Debugging style, TODO change to RGB
         if callable(color):

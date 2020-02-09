@@ -49,9 +49,12 @@ class BaseNode(object):
                                   ": Class function run_core() is not implemented, but is abstract.")
 
     def start(self):
-        # Create asyncio event-loop for co-routines
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(self.run_async(loop))
+        try:
+            # Create asyncio event-loop for co-routines
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(self.run_async(loop))
+        except RuntimeError as e:
+            print("Loop exception " + str(e))
 
     async def run_async(self, loop):
         await self.setup_connection(loop)
@@ -63,8 +66,6 @@ class BaseNode(object):
         else:
             # Blocking wait
             await self.run_core(loop)
-        # await asyncio.sleep(1)
-        LOGGER.debug(self._identifier + " finished. Cleaning up.")
 
         # Cleanup work
         await self.close_connection(delete_queue=self._config.delete_queue)
