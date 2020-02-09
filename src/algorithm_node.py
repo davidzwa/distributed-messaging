@@ -63,4 +63,8 @@ class AlgorithmNode(BaseNode):
 
     def log(self, message):
         if self._config.debug_messages:
-            LOGGER.info(style.YELLOW(message))
+            if callable(self._config.color):
+                LOGGER.info("[{}] {}".format(self._identifier,
+                                             self._config.color(message)))
+        else:
+            LOGGER.info("[{}] {}".format(self._identifier, message))
