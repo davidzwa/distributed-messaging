@@ -34,11 +34,17 @@ class BaseNode(object):
             self._amqp_url = self._config.amqp_url
         if callable(on_message_receive_debug):
             self._on_message_callback_debug = on_message_receive_debug
+    
+    def get_identifier(self):
+        return self._identifier
 
     @abc.abstractmethod
     async def setup_connection(self, loop):
+        # Suggestion:
         # queue_name = self._identifier
         # await self.init_connection(loop=loop)
+
+        # Choose fanout, topic or direct here
         # await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
         raise NotImplementedError(self._identifier +
                                   ": Class function setup_connection() is not implemented, but is abstract.")
@@ -80,11 +86,16 @@ class BaseNode(object):
                 self._on_message_callback_debug(self._identifier, message)
 
     # Public method, since it is straight-forward
-    async def publish_message(self, message: Message, routing_key):
+    async def publish_message(self, message: Message, target_node_queue, default_exchange=False):
         if self._exchange is None:
             LOGGER.error(
                 "Exchange is None or is_closed() is true. Have you initialized the exchange and queue by calling init_fanout_messaging, init_topic_messaging or init_direct_messaging?")
-        await self._exchange.publish(message, routing_key)
+        if default_exchange == False:
+            await self._exchange.publish(message, target_node_queue)
+        else:
+            # Direct messaging (default_exchange is always available)!
+            # Routing key = target queue
+            await self._channel.default_exchange.publish(message, target_node_queue)
 
     async def init_connection(self, loop):
         self._connection = await connect_robust(

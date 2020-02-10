@@ -23,18 +23,23 @@ class AlgorithmConfig(BaseConfig):
     _identifier_base: str = "AlgorithmNode"
 
     def __init__(self,
-                 index, is_algorithm_initiator,
+                 index, num_nodes, is_algorithm_initiator, algorithm_init_state,
                  amqp_url=None,
                  color=style.GREEN, debug_messages=True,
+                 messaging_probability=0.10,
                  autodelete_exchange=True, delete_exchange=False,
                  prepurge_queues=True, autodelete_queue=True, delete_queue=False):
 
         # Algorithm initiator, will listen for the 'kick-off' message
         self.is_algorithm_initiator = is_algorithm_initiator
+        self.algorithm_init_state = algorithm_init_state
         # Save index, will be handy as tie-breaker
+        self.num_nodes = num_nodes
         self.node_index = index
         # Used as indicator and as queue name
         self.identifier = self._identifier_base + str(self.node_index)
+        # Generic TRANSFER message type sending
+        self.messaging_probability = messaging_probability
 
         # Debugging style, TODO change to RGB
         if callable(color):
