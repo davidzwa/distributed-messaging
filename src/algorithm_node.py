@@ -44,10 +44,8 @@ class AlgorithmNode(BaseNode):
         if not self._is_running:
             self._is_running = True
             while True:
-                # self.log("Going to sleep")
+                # Await until 1 node starts spamming the system with messages, after that the event is never set again expliticly.
                 await self.sleep_cancellation_event.wait()
-                # self.log("Awaking from sleep")
-                # self.sleep_cancellation_event.clear()
                 await asyncio.wait([self.sleep_cancellation_event.wait(), asyncio.sleep(0.5 + random.random())],
                                    return_when=asyncio.FIRST_COMPLETED)
 
@@ -56,24 +54,9 @@ class AlgorithmNode(BaseNode):
                     target = random.choice(self.known_nodes)
                     await self.transfer_balance(balance, target)
 
-                    # if self._config.is_algorithm_initiator
-
                 # In case something fails, we dont burn CPU time
                 delay = random.random() / 10.0
                 await asyncio.sleep(delay)
-
-                # Await infinitely long, until we get interrupted in our slumber
-                # self.sleep_cancellation_event.clear()
-                
-
-                # Send x test messages with random delay
-                # for i in range(2):
-                #     broadcastMessage = BroadcastMessage(
-                #         self.global_state_sequence,
-                #         sender_node_name=self._identifier)
-                #     msg = Message(
-                #         bytes(broadcastMessage.serialize(), encoding='utf8'))
-                #     await self.publish_message(msg, routing_key="")
 
         self.log("Waiting 0.5 seconds for cleaning up/closing connection.")
         await asyncio.sleep(0.5)
@@ -147,13 +130,14 @@ class AlgorithmNode(BaseNode):
                     # Keep message here, dont bubble up
                     self.log(print_message)
 
-    # def record_local_state(self):
-    #     # Record local state
-    #     self.local_state_recorded = True
+    def record_local_state(self):
+        # Record local state
+        self.local_state_recorded = True
+        self.log("Recording state")
     #     # Broadcast marker
     #     super().publish_message
 
-    def log(self, message):
+    def log(self, message, style_colorizer=style.GREEN):
         if self._config.debug_messages:
             if callable(self._config.color):
                 LOGGER.info("[{}] {}".format(self._identifier,
