@@ -79,6 +79,16 @@ class AlgorithmMessage(object):
         self.payload = None
         self._type = MessageType.MARKER
 
+    def is_balance_transfer(self):
+        if self._type == MessageType.GENERIC_TRANSFER:
+            # We expect the list to contain only 1 element.
+            if self.payload and len(self.payload) == 1:
+                return True
+            else:
+                raise Exception("The list didnt contain only 1 element or itwas empty.")
+        else:
+            return False
+
     def set_transfer_message(self, transfers:list):
         self.payload = transfers
         self._type = MessageType.GENERIC_TRANSFER

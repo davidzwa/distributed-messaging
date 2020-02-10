@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "module": "main",
-            "console": "internalConsole",
+            "console": "externalTerminal",
             "cwd": "${workspaceFolder}/src"
         }
     ]

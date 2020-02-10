@@ -90,7 +90,7 @@ class AlgorithmNode(BaseNode):
             if balance <= self.balance:
                 self.log(
                     "Transferred {} to target {}.".format(balance, target))
-                balance -= balance
+                self.balance -= balance
                 await super().publish_message(msg, target_node_queue=target, default_exchange=True)
             else:
                 self.log(
@@ -134,6 +134,10 @@ class AlgorithmNode(BaseNode):
                     print("We were running, but no sleeping event was defined.")
                     raise Exception("No sleeping event known. Illegal state.")
             else:
+                if msg.is_balance_transfer():
+                    self.balance += msg.payload[0]
+                    self.log("Received transfer of {}, total: {}".format(msg.payload[0], self.balance))
+                    self.sleep_cancellation_event.set()
                 print_message = 'Got message {} from node {}'.format(
                     msg.uuid, msg.sender_node_name)
                 if callable(self.report_message_callback):

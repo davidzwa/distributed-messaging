@@ -26,7 +26,7 @@ class AlgorithmConfig(BaseConfig):
                  index, num_nodes, is_algorithm_initiator, algorithm_init_state,
                  amqp_url=None,
                  color=style.GREEN, debug_messages=True,
-                 messaging_probability=0.10,
+                 messaging_probability=0.05,
                  autodelete_exchange=True, delete_exchange=False,
                  prepurge_queues=True, autodelete_queue=True, delete_queue=False):
 
