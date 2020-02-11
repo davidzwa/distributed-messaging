@@ -27,6 +27,7 @@ algorithm_nodes = []
 max_initial_balance = 100
 num_nodes = 5
 
+
 def log_main(log_message, style_formatter=style.BLUE):
     if callable(style_formatter):
         LOGGER.info(style_formatter(log_message))
@@ -56,7 +57,7 @@ async def kickoff_simulation(default_config: BaseConfig, initiator_index: bool):
         RABBITMQ_CONNECTION_STRING, loop=loop
     )
     channel = await connection.channel()
-    
+
     # Declare exchange passively (if created, assume properties set elswhere, like within AlgorithmNode)
     exchange = await channel.declare_exchange(
         default_config.exchange_name, passive=True)
@@ -70,7 +71,7 @@ async def kickoff_simulation(default_config: BaseConfig, initiator_index: bool):
     msg = Message(
         bytes(broadcastMessage.serialize(), encoding='utf8'))
     log_main("Broadcast node-list", style.YELLOW)
-    await exchange.publish(msg, routing_key="")    
+    await exchange.publish(msg, routing_key="")
     log_main("Waiting 0.1 sec to start, so nodes can process list.", style.YELLOW)
     await asyncio.sleep(0.1)
     log_main("Initiating now", style.YELLOW)
@@ -83,7 +84,8 @@ async def kickoff_simulation(default_config: BaseConfig, initiator_index: bool):
 
 
 if __name__ == '__main__':
-    default_worker_colors = [style.GREEN, style.YELLOW]
+    default_worker_colors = [style.GREEN,
+                             style.YELLOW, style.CYAN, style.RED, style.BLACK]
     start_time = getTime()
 
     # Setup algorithm initiator, maximum (random) balance and initiator
@@ -99,18 +101,17 @@ if __name__ == '__main__':
     for index in range(len(pool.workers)):
         # Start one threaded & async node (connection => thread, async handling => coroutine)
         worker_color = style.GREEN
-        try:
-            worker_color = default_worker_colors[index]
-        except:
-            pass
+        # try:
+        worker_color = default_worker_colors[index]
 
         is_initiating_node = index == algorithm_initiator_index
-        starting_balance = random.randint(1,max_initial_balance)
+        starting_balance = random.randint(1, max_initial_balance)
         sum_balance += starting_balance
 
         parameters = AlgorithmConfig(
             index, num_nodes, is_initiating_node, starting_balance,
             amqp_url=RABBITMQ_CONNECTION_STRING,
+            color=worker_color,
             autodelete_queue=True,
             debug_messages=True)
         if algorithm_initiator_index == index:
@@ -122,7 +123,8 @@ if __name__ == '__main__':
         pool.add_task(start_async_node, parameters)
 
     # Wait for at least one node to setup the exchange
-    log_main("Started simulation with {} total balance distributed across nodes".format(sum_balance), style_formatter=style.YELLOW)
+    log_main("Started simulation with {} total balance distributed across nodes".format(
+        sum_balance), style_formatter=style.YELLOW)
     time.sleep(1)
     asyncio.run(kickoff_simulation(BaseConfig(), algorithm_initiator_index))
     # Await all workers to complete

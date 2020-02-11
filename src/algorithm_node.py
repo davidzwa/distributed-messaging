@@ -14,7 +14,7 @@ LOGGER = logging.getLogger(__name__)
 class AlgorithmNode(BaseNode):
     # Configuration and knowledge
     _config: AlgorithmConfig
-    _known_nodes: list = []
+    _known_nodes: list = []             # Safe to define here, overwritten dynamically
 
     # State variables
     _is_running: bool = False
@@ -25,12 +25,13 @@ class AlgorithmNode(BaseNode):
     last_recording_sequence = None      # Last recorded sequence number
     global_state_sequence: int = None   # Currently processed recording sequence
 
-    _awaiting_channels: list = []
-    _recorded_channels: list = []
-    _channel_buffers: dict = {}
-
     # Intercept message receipt, init base class
     def __init__(self, config: AlgorithmConfig, on_message_receive_debug=None):
+        # DONT DEFINE THESE IN CLASS SPACE, they will get shared across classes that way!
+        self._awaiting_channels: list = []
+        self._recorded_channels: list = []
+        self._channel_buffers: dict = {}
+
         self._config = config
         self.report_message_callback = on_message_receive_debug
         self.balance = self._config.algorithm_init_state
@@ -155,19 +156,25 @@ class AlgorithmNode(BaseNode):
         # self.log("Received transfer of {}, total: {}".format(
         #     transferred_balance, self.balance))
 
-    async def record_and_send_markers(self, global_state_sequence):
+    async def record_and_send_markers(self, global_state_sequence, incoming_channel=None):
         # Blindly accept new sequence for now, TODO decide whether that requires a reset
         self.global_state_sequence = global_state_sequence
         self.record_local_state()
 
-        self._awaiting_channels = self._known_nodes.copy()
+        self._awaiting_channels = self._known_nodes[:]
+        # Send answer to incoming, but dont register as awaiting
+        if incoming_channel is not None:
+            self._awaiting_channels.remove(incoming_channel)
+            await self.send_markers([incoming_channel], global_state_sequence)
+
+        # Send to all outgoing
         await self.send_markers(
             self._awaiting_channels, global_state_sequence)
+
         for channel in self._awaiting_channels:
-            self.log("clearing channel: {}".format(channel))
+            self.log("Clearing channel: {}".format(channel))
             self._channel_buffers = dict((channel, [])
                                          for channel in self._awaiting_channels)
-        # await send_marker_task
 
         # Again, we blindly accept the sequence number for now as-is
         self.last_recording_sequence = self.global_state_sequence
@@ -176,7 +183,7 @@ class AlgorithmNode(BaseNode):
         if self.local_state_recorded == False:
             # Record as empty, or rather: clear it
             self._channel_buffers.setdefault(msg.sender_node_name, [])
-            await self.record_and_send_markers(msg.marker_sequence)
+            await self.record_and_send_markers(msg.marker_sequence, msg.sender_node_name)
         else:
             # Record state of channel c as contents of Bc
             if msg.sender_node_name in self._awaiting_channels:
@@ -187,6 +194,9 @@ class AlgorithmNode(BaseNode):
             if len(self._awaiting_channels) == 0:
                 self.log("Algorithm seemingly complete on my side ({} known, {} recorded, {} awaiting)!".format(
                     len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
+            else:
+                self.log("Algorithm awaiting ({} known, {} recorded, {} awaiting)!".format(
+                    len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
 
     def record_local_state(self):
         # Record local state
@@ -195,7 +205,15 @@ class AlgorithmNode(BaseNode):
         self.log("Recorded LOCAL state {}".format(self.local_state_record))
 
     def record_channel_state(self, channel):
-        # Record channel state and move over to _recorded_channels for reference
+        # Sanity checks
+        if channel == self._identifier:
+            raise Exception("Problem: {} == {}".format(
+                channel, self._identifier))
+        if self._identifier in self._recorded_channels:
+            raise Exception("Problem: {} occurred in recored channels {}".format(
+                self._identifier, self._recorded_channels))
+
+        # Record channel state and move over to _recorded_channels for handy reference
         self._awaiting_channels.remove(channel)
         self._recorded_channels.append(channel)
         channel_buffer = self._channel_buffers.get(channel)
