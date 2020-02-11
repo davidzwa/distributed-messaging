@@ -34,7 +34,7 @@ class BaseNode(object):
             self._amqp_url = self._config.amqp_url
         if callable(on_message_receive_debug):
             self._on_message_callback_debug = on_message_receive_debug
-    
+
     def get_identifier(self):
         return self._identifier
 
@@ -80,10 +80,13 @@ class BaseNode(object):
     # Left private so we can explicitly bubble up the message to derivative class
     async def __receive_message(self, message: IncomingMessage):
         async with message.process():
-            LOGGER.debug(
-                self._identifier + " received (unhandled) message on exchange '{}'".format(message.exchange))
-            if callable(self._on_message_callback_debug):
+            if asyncio.iscoroutinefunction(self._on_message_callback_debug):
+                await self._on_message_callback_debug(self._identifier, message)
+            elif callable(self._on_message_callback_debug):
                 self._on_message_callback_debug(self._identifier, message)
+            else:
+                LOGGER.info(
+                    self._identifier + " received (unhandled) message on exchange '{}'".format(message.exchange))
 
     # Public method, since it is straight-forward
     async def publish_message(self, message: Message, target_node_queue, default_exchange=False):

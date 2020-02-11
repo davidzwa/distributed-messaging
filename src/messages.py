@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 from enum import IntEnum
+from aio_pika import Message
 
 
 class MessageType(IntEnum):
@@ -65,12 +66,16 @@ class AlgorithmMessage(object):
         self.payload = None
         self.initiator_index = initiator_index
 
-    def is_expected_marker(self, expected_marker_sequence=None):
+    def is_marker_message(self):
+        return self._type == MessageType.MARKER
+
+    def is_expected_marker(self, expected_marker_sequence):
         if self._type == MessageType.MARKER:
             if expected_marker_sequence and self.marker_sequence == expected_marker_sequence:
                 return True
             else:
-                raise Exception("The marker was not of the right sequence. No way to deal with that yet.")
+                raise Exception(
+                    "The marker was not of the right sequence {} vs given {}. No way to deal with that yet.".format(expected_marker_sequence, self.marker_sequence))
         else:
             return False
 
@@ -85,13 +90,18 @@ class AlgorithmMessage(object):
             if self.payload and len(self.payload) == 1:
                 return True
             else:
-                raise Exception("The list didnt contain only 1 element or itwas empty.")
+                raise Exception(
+                    "The list didnt contain only 1 element or itwas empty.")
         else:
             return False
 
-    def set_transfer_message(self, transfers:list):
+    def set_transfer_message(self, transfers: list):
         self.payload = transfers
         self._type = MessageType.GENERIC_TRANSFER
 
     def serialize(self):
         return json.dumps(self.__dict__)
+
+    def tobytes(self):
+        return Message(
+            bytes(self.serialize(), encoding='utf8'))
