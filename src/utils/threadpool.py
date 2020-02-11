@@ -28,7 +28,8 @@ class Worker(Thread):
                 finally:
                     self.tasks.task_done()
             except Empty as e:
-                print("Exception! " + str(e))
+                print("Quitting thread, as it is not running anything.")
+                self.done.set()
                 pass
         return
 

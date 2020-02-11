@@ -46,13 +46,13 @@ class AlgorithmNode(BaseNode):
     # Implement abstract function of base class:
     #   Run core of algorithm with a proper connection to RabbitMQ setup for you
     async def run_core(self, loop):
-        self.sleep_cancellation_event = asyncio.Event(loop=loop)
+        self.cancellation_event = asyncio.Event(loop=loop)
         if not self._is_running:
             self._is_running = True
             while True:
                 # Await until 1 node starts spamming the system with messages, after that the event is never set again expliticly.
-                await self.sleep_cancellation_event.wait()
-                await asyncio.wait([self.sleep_cancellation_event.wait(), asyncio.sleep(0.5 + random.random())],
+                await self.cancellation_event.wait()
+                await asyncio.wait([self.cancellation_event.wait(), asyncio.sleep(0.5 + random.random())],
                                    return_when=asyncio.FIRST_COMPLETED)
 
                 if random.random() <= self._config.messaging_probability and self._known_nodes and self.balance >= 1:
@@ -63,12 +63,16 @@ class AlgorithmNode(BaseNode):
                 # In case something fails, we dont burn CPU time
                 delay = random.random() / 10.0
                 await asyncio.sleep(delay)
+
+                self.check_if_finished()
+                if self.cancellation_event.is_set():
+                    break
         else:
             raise Exception(
                 "'run_core()' was already running. That's a problem.")
 
-        self.log("Waiting 0.5 seconds for cleaning up/closing connection.")
-        await asyncio.sleep(0.5)
+        self.log("Waiting 5 seconds for cleaning up/closing connection.")
+        await asyncio.sleep(5)
         self._is_running = False
 
     # Generic balance transfer message
@@ -109,7 +113,6 @@ class AlgorithmNode(BaseNode):
                 await self.receive_marker(msg)
             elif msg.is_balance_transfer():
                 self.balance_transfer_received(msg)
-                self.sleep_cancellation_event.set()  # Awake
             else:
                 print_message = 'Got unknown message {} from node {}'.format(
                     msg.uuid, msg.sender_node_name)
@@ -119,6 +122,7 @@ class AlgorithmNode(BaseNode):
                 else:
                     # Keep message here, dont bubble up
                     self.log(print_message)
+        self.check_if_finished()
 
     def pre_ititiation_received(self, msg):
         if len(msg.payload) <= 5:
@@ -136,13 +140,13 @@ class AlgorithmNode(BaseNode):
                 "We were activated, but not running... Maybe we died?")
             raise Exception(
                 "Unsure what to do. 'run_core(...)' is not sleeping. Erroneous state.")
-        elif self.sleep_cancellation_event:
+        elif self.cancellation_event:
             # Awake from slumber, albeit a short one (see run_core() timeout|sleep)
             self.global_state_sequence = msg.marker_sequence
             self.log("Awaking from sleep for initiation with initiation sequence {}".format(
                 msg.marker_sequence))
             await self.record_and_send_markers(msg.marker_sequence)
-            self.sleep_cancellation_event.set()
+            self.cancellation_event.set()
         else:
             self.log("We were running, but no sleeping event was defined.")
             raise Exception("No sleeping event known. Illegal state.")
@@ -162,28 +166,27 @@ class AlgorithmNode(BaseNode):
         self.record_local_state()
 
         self._awaiting_channels = self._known_nodes[:]
+        for channel in self._awaiting_channels:
+            self.log("Clearing channel: {}".format(channel))
+            self._channel_buffers = dict((channel, [])
+                                         for channel in self._awaiting_channels)
         # Send answer to incoming, but dont register as awaiting
         if incoming_channel is not None:
             self._awaiting_channels.remove(incoming_channel)
             await self.send_markers([incoming_channel], global_state_sequence)
 
+        # Again, we blindly accept the sequence number for now as-is
+        self.last_recording_sequence = self.global_state_sequence
+
         # Send to all outgoing
         await self.send_markers(
             self._awaiting_channels, global_state_sequence)
-
-        for channel in self._awaiting_channels:
-            self.log("Clearing channel: {}".format(channel))
-            self._channel_buffers = dict((channel, [])
-                                         for channel in self._awaiting_channels)
-
-        # Again, we blindly accept the sequence number for now as-is
-        self.last_recording_sequence = self.global_state_sequence
 
     async def receive_marker(self, msg: AlgorithmMessage):
         if self.local_state_recorded == False:
             # Record as empty, or rather: clear it
             self._channel_buffers.setdefault(msg.sender_node_name, [])
-            await self.record_and_send_markers(msg.marker_sequence, msg.sender_node_name)
+            await self.record_and_send_markers(msg.marker_sequence, incoming_channel=msg.sender_node_name)
         else:
             # Record state of channel c as contents of Bc
             if msg.sender_node_name in self._awaiting_channels:
@@ -191,12 +194,6 @@ class AlgorithmNode(BaseNode):
             else:
                 raise Exception("Channel {} was not expected in awaiting_channels as it was retrieved earlier!".format(
                     msg.sender_node_name))
-            if len(self._awaiting_channels) == 0:
-                self.log("Algorithm seemingly complete on my side ({} known, {} recorded, {} awaiting)!".format(
-                    len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
-            else:
-                self.log("Algorithm awaiting ({} known, {} recorded, {} awaiting)!".format(
-                    len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
 
     def record_local_state(self):
         # Record local state
@@ -219,6 +216,15 @@ class AlgorithmNode(BaseNode):
         channel_buffer = self._channel_buffers.get(channel)
 
         self.log("Recorded CHANNEL state {}".format(channel_buffer))
+
+    def check_if_finished(self):
+        if len(self._awaiting_channels) == 0 and self.local_state_recorded:
+            self.log("Algorithm seemingly complete on my side ({} known, {} recorded, {} awaiting)!".format(
+                len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
+            self.cancellation_event.set()  # Cancel and cleanup
+        else:
+            self.log("Algorithm awaiting ({} known, {} recorded, {} awaiting)!".format(
+                len(self._known_nodes), len(self._recorded_channels), len(self._awaiting_channels)))
 
     async def send_markers(self, channel_list: list, sequence_number):
         for target_queue in channel_list:

@@ -25,7 +25,7 @@ logging.getLogger("aio_pika").propagate = False
 # Module global variables
 algorithm_nodes = []
 max_initial_balance = 100
-num_nodes = 5
+num_nodes = 10
 
 
 def log_main(log_message, style_formatter=style.BLUE):
@@ -101,8 +101,8 @@ if __name__ == '__main__':
     for index in range(len(pool.workers)):
         # Start one threaded & async node (connection => thread, async handling => coroutine)
         worker_color = style.GREEN
-        # try:
-        worker_color = default_worker_colors[index]
+        if len(default_worker_colors) > index:
+            worker_color = default_worker_colors[index]
 
         is_initiating_node = index == algorithm_initiator_index
         starting_balance = random.randint(1, max_initial_balance)
