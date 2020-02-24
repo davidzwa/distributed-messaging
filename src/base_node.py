@@ -29,7 +29,7 @@ class BaseNode(object):
         self._config = config
         self._identifier = config.identifier
         self._exchange_name = config.exchange_name
-        LOGGER.info("Started async_node " + self._identifier)
+        LOGGER.debug("Started async_node " + self._identifier)
         if self._config.amqp_url:
             self._amqp_url = self._config.amqp_url
         if callable(on_message_receive_debug):

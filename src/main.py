@@ -25,14 +25,12 @@ logging.getLogger("aio_pika").propagate = False
 # Module global variables
 algorithm_nodes = []
 max_initial_balance = 100
-num_nodes = 10
+num_nodes = 5
 
 
-def log_main(log_message, style_formatter=style.BLUE):
+def log_main(log_message, style_formatter=style.WHITE):
     if callable(style_formatter):
-        LOGGER.info(style_formatter(log_message))
-    else:
-        LOGGER.info(style.BLUE(log_message))
+        LOGGER.warning(style_formatter(log_message))
 
 
 def spy_message(node_identifier, message: IncomingMessage):
@@ -42,12 +40,13 @@ def spy_message(node_identifier, message: IncomingMessage):
 
 
 def start_async_node(config: AlgorithmConfig):
+    # Start the AlgorithmNode worker in sync
     consumer = AlgorithmNode(
         config,
         on_message_receive_debug=spy_message)
     # Record it for ease of access
     algorithm_nodes.append(consumer)
-    # Start it and if correct 'consumer.run_core()' should be called, once RabbitMQ communication is setup.
+    # Start it and if correct 'consumer.run_core()' should be called within, once RabbitMQ communication is setup.
     consumer.start()
 
 
@@ -70,11 +69,11 @@ async def kickoff_simulation(default_config: BaseConfig, initiator_index: bool):
     broadcastMessage.set_pre_initiation_message(payload=msg_payload)
     msg = Message(
         bytes(broadcastMessage.serialize(), encoding='utf8'))
-    log_main("Broadcast node-list", style.YELLOW)
+    # log_main("Broadcast node-list")
     await exchange.publish(msg, routing_key="")
-    log_main("Waiting 0.1 sec to start, so nodes can process list.", style.YELLOW)
+    # log_main("Waiting 0.1 sec to start, so nodes can process list.")
     await asyncio.sleep(0.1)
-    log_main("Initiating now", style.YELLOW)
+    log_main("Initiating now")
     broadcastMessage.set_initiation_message(initiator_index)
     msg = Message(
         bytes(broadcastMessage.serialize(), encoding='utf8'))
@@ -86,49 +85,48 @@ async def kickoff_simulation(default_config: BaseConfig, initiator_index: bool):
 if __name__ == '__main__':
     default_worker_colors = [style.GREEN,
                              style.YELLOW, style.CYAN, style.RED, style.BLACK]
-    start_time = getTime()
+    for i in range(1):
+        start_time = getTime()
 
-    # Setup algorithm initiator, maximum (random) balance and initiator
-    sum_balance = 0
-    algorithm_initiator_index = random.randint(0, num_nodes - 1)
-    log_main("Booting algorithm simulator for {} nodes with {} as initiator".format(
-        num_nodes, algorithm_initiator_index))
+        # Setup algorithm initiator, maximum (random) balance and initiator
+        sum_balance = 0
+        algorithm_initiator_index = random.randint(0, num_nodes - 1)
+        log_main("Booting algorithm simulator for {} nodes with {} as initiator".format(
+            num_nodes, algorithm_initiator_index))
 
-    # TODO create exchange here instead of at every node so we know what is gonna happen
+        # Run custom ThreadPool object with 'start_async_node' as target
+        pool = ThreadPool(num_nodes)
+        for index in range(len(pool.workers)):
+            # Start one threaded & async node (connection => thread, async handling => coroutine)
+            worker_color = style.GREEN
+            if len(default_worker_colors) > index:
+                worker_color = default_worker_colors[index]
 
-    # Run custom ThreadPool object with 'start_async_node' as target
-    pool = ThreadPool(num_nodes)
-    for index in range(len(pool.workers)):
-        # Start one threaded & async node (connection => thread, async handling => coroutine)
-        worker_color = style.GREEN
-        if len(default_worker_colors) > index:
-            worker_color = default_worker_colors[index]
+            is_initiating_node = index == algorithm_initiator_index
+            starting_balance = random.randint(1, max_initial_balance)
+            sum_balance += starting_balance
 
-        is_initiating_node = index == algorithm_initiator_index
-        starting_balance = random.randint(1, max_initial_balance)
-        sum_balance += starting_balance
+            parameters = AlgorithmConfig(
+                index, num_nodes, is_initiating_node, starting_balance,
+                amqp_url=RABBITMQ_CONNECTION_STRING,
+                color=worker_color,
+                autodelete_queue=True,
+                debug_messages=True)
+            pool.add_task(start_async_node, parameters)
 
-        parameters = AlgorithmConfig(
-            index, num_nodes, is_initiating_node, starting_balance,
-            amqp_url=RABBITMQ_CONNECTION_STRING,
-            color=worker_color,
-            autodelete_queue=True,
-            debug_messages=True)
-        if algorithm_initiator_index == index:
-            log_main("Booting initiator node index {} now.".format(
-                algorithm_initiator_index))
-        else:
-            log_main("Booting normal node index {} (!= {}) now.".format(
-                index, algorithm_initiator_index))
-        pool.add_task(start_async_node, parameters)
-
-    # Wait for at least one node to setup the exchange
-    log_main("Started simulation with {} total balance distributed across nodes".format(
-        sum_balance), style_formatter=style.YELLOW)
-    time.sleep(1)
-    asyncio.run(kickoff_simulation(BaseConfig(), algorithm_initiator_index))
-    # Await all workers to complete
-    pool.wait_completion()
-    delta_time = getElapsedTime(start_time)
-    log_main("Simulation ended in {} seconds".format(
-        round(delta_time, 3)))
+        # Wait for at least one node to setup the exchange
+    
+        log_main("Started simulation, total balance: {} ".format(
+            sum_balance))
+        time.sleep(0.5)
+        asyncio.run(kickoff_simulation(BaseConfig(), algorithm_initiator_index))
+        # Await all workers to complete
+        pool.wait_completion()
+        time.sleep(0.5)
+        pool._close_all_threads()
+        delta_time = getElapsedTime(start_time)
+        log_main("Simulation ended in {} seconds".format(
+            round(delta_time, 3)))
+        
+        # Threads might still be alive
+        algorithm_nodes = []
