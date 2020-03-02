@@ -13,7 +13,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class BaseNode(object):
-    """ This is an example consumer that will connect with asynchronous connection
+    """
+        This is an example consumer that will connect with asynchronous connection
         Find documentation on aio_pika here https://aio-pika.readthedocs.io/en/latest/quick-start.html
         Find documentation on asyncio here https://docs.python.org/3/library/asyncio.html
     """
@@ -40,12 +41,13 @@ class BaseNode(object):
 
     @abc.abstractmethod
     async def setup_connection(self, loop):
+        """
         # Suggestion:
-        # queue_name = self._identifier
-        # await self.init_connection(loop=loop)
-
+        queue_name = self._identifier
+        await self.init_connection(loop=loop)
         # Choose fanout, topic or direct here
-        # await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
+        await self.init_topic_messaging(queue_name, exchange_name=self._exchange_name)
+        """
         raise NotImplementedError(self._identifier +
                                   ": Class function setup_connection() is not implemented, but is abstract.")
 
@@ -73,12 +75,12 @@ class BaseNode(object):
             # Blocking wait
             await self.run_core(loop)
 
-        # Cleanup work
+        # Cleanup
         await self.close_connection(delete_queue=self._config.delete_queue)
         LOGGER.info(self._identifier + " done and cleaned up after it.")
 
-    # Left private so we can explicitly bubble up the message to derivative class
     async def __receive_message(self, message: IncomingMessage):
+        """ Left private so we can explicitly bubble up the message any extending class """
         async with message.process():
             if asyncio.iscoroutinefunction(self._on_message_callback_debug):
                 await self._on_message_callback_debug(self._identifier, message)
@@ -88,7 +90,6 @@ class BaseNode(object):
                 LOGGER.info(
                     self._identifier + " received (unhandled) message on exchange '{}'".format(message.exchange))
 
-    # Public method, since it is straight-forward
     async def publish_message(self, message: Message, target_node_queue, default_exchange=False):
         if self._exchange is None:
             LOGGER.error(

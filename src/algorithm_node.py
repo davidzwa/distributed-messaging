@@ -17,16 +17,18 @@ class AlgorithmNode(BaseNode):
     _known_nodes: list = []             # Safe to define here, overwritten dynamically
 
     # State variables
-    _is_running: bool = False
-
+    _is_running: bool = False           # Sanity check
     balance: int = 0                    # Fictional state, a balance of sorts
     local_state_record = None           # Local state, at last moment of recording
     local_state_recorded = False        # Indiciation if local_state_record was recorded
     last_recording_sequence = None      # Last recorded sequence number
     global_state_sequence: int = None   # Currently processed recording sequence
 
-    # Intercept message receipt, init base class
+    
     def __init__(self, config: AlgorithmConfig, on_message_receive_debug=None):
+        """
+            Define empty channels/buffers and states
+        """
         # DONT DEFINE THESE IN CLASS SPACE, they will get shared across classes that way!
         self._awaiting_channels: list = []
         self._recorded_channels: list = []
@@ -36,17 +38,23 @@ class AlgorithmNode(BaseNode):
         self._config = config
         self.report_message_callback = on_message_receive_debug
         self.balance = self._config.algorithm_init_state
+        
+        # Lets base inititate as well
         super().__init__(self._config, self.receive_message)
 
-    # Implement abstract function of base class
     async def setup_connection(self, loop):
+        """
+            Implement abstract function of base class:
+            Setup connection type, choose exchange type
+        """
         await self.init_connection(loop=loop)
-        # self.log('Setup exchange as fanout')
         await self.init_fanout_messaging(self._config.identifier, exchange_name=self._config.exchange_name)
 
-    # Implement abstract function of base class:
-    #   Run core of algorithm with a proper connection to RabbitMQ setup for you
     async def run_core(self, loop):
+        """
+        Implement abstract function of base class:
+            Run core of algorithm with a proper connection to RabbitMQ setup for you
+        """
         self.cancellation_event = asyncio.Event(loop=loop)
         if not self._is_running:
             self._is_running = True
@@ -72,8 +80,10 @@ class AlgorithmNode(BaseNode):
                 "'run_core()' was already running. That's a problem.")
         self._is_running = False
 
-    # Generic balance transfer message
     async def transfer_balance(self, balance: int, target: str):
+        """ Do Work: 
+            Sending generic balance transfer message 
+        """
         if self._known_nodes and len(self._known_nodes) > 0:
             broadcastMessage = AlgorithmMessage(
                 sender_node_name=self._identifier)
@@ -114,6 +124,7 @@ class AlgorithmNode(BaseNode):
                 print_message = 'Got unknown message {} from node {}'.format(
                     msg.uuid, msg.sender_node_name)
             
+            # Choose to bubble up to main or not
             # if callable(self.report_message_callback):
             #     # Forwarding message to __main__
             #     self.report_message_callback(node_identifier, message)
@@ -122,10 +133,6 @@ class AlgorithmNode(BaseNode):
             #     self.log(print_message)
 
     def pre_ititiation_received(self, msg):
-        # if len(msg.payload) <= 5:
-        #     self.log(
-        #         "received initiation list: ({}) {}".format(len(msg.payload), msg.payload))
-        # else:
         #     self.log(
         #         "received initiation list of length ({})".format(len(msg.payload)))
         msg.payload.remove(self._identifier)
