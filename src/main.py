@@ -25,7 +25,7 @@ logging.getLogger("aio_pika").propagate = False
 # Module global variables
 algorithm_nodes = []
 max_initial_balance = 100
-num_nodes = 5
+num_nodes = 10
 
 
 def log_main(log_message, style_formatter=style.WHITE):
